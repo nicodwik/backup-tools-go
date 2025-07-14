@@ -2,9 +2,7 @@ version: '3.8'
 
 services:
   backup-tools-go:
-    # Use 'build: .' to build the Dockerfile in the current directory
-    # Alternatively, if you have already built the image, you can use 'image: my-go-app'
-    image: nicodwik/backup-tools-go:1.0
+    image: nicodwik/backup-tools-go:1.0 #change this
     container_name: backup-tools-go
     environment:
       # BACKUP_OUTPUT_PATH: "/backups"
@@ -12,5 +10,5 @@ services:
       CRON_EXPRESSION: "0 15 * * * *"
       # INPUT_BASE_PATH: "/data"
     volumes:
-      - PATH_TO_BACKUP_OUTPUT_FOLDER:/backups"
-      - PATH_TO_BACKUP_SOURCE_FOLDER:/data
+      - PATH_TO_BACKUP_OUTPUT_FOLDER:/backups" #change this
+      - PATH_TO_BACKUP_SOURCE_FOLDER:/data #change this
