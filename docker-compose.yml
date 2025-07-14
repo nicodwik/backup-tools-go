@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  backup-tools-go:
+    # Use 'build: .' to build the Dockerfile in the current directory
+    # Alternatively, if you have already built the image, you can use 'image: my-go-app'
+    image: nicodwik/backup-tools-go:1.0
+    container_name: backup-tools-go
+    environment:
+      # BACKUP_OUTPUT_PATH: "/backups"
+      COMPRESSION_LEVEL: "1"
+      # INPUT_BASE_PATH: "/data"
+    volumes:
+      - /Users/nicodwik/docker-services/casa/backups:/backups
+      - /Users/nicodwik/docker-services/casa/Gallery:/data
