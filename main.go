@@ -13,10 +13,13 @@ import (
 )
 
 func main() {
-
+	cronExpression := os.Getenv("CRON_EXPRESSION")
+	if cronExpression == "" {
+		cronExpression = "0 15 * * * *"
+	}
 	cr := cron.New()
 
-	cr.AddFunc("0 * * * *", func() {
+	cr.AddFunc(cronExpression, func() {
 		fmt.Println("Backup s running at:", time.Now().Format(time.DateTime))
 		if err := doBackup(); err != nil {
 			log.Fatalf("ERROR when doing backup: %s", err.Error())

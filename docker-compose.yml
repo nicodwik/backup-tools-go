@@ -9,6 +9,7 @@ services:
     environment:
       # BACKUP_OUTPUT_PATH: "/backups"
       COMPRESSION_LEVEL: "1"
+      CRON_EXPRESSION: "0 15 * * * *"
       # INPUT_BASE_PATH: "/data"
     volumes:
       - PATH_TO_BACKUP_OUTPUT_FOLDER:/backups"
