@@ -11,5 +11,5 @@ services:
       COMPRESSION_LEVEL: "1"
       # INPUT_BASE_PATH: "/data"
     volumes:
-      - /Users/nicodwik/docker-services/casa/backups:/backups
-      - /Users/nicodwik/docker-services/casa/Gallery:/data
+      - PATH_TO_BACKUP_OUTPUT_FOLDER:/backups"
+      - PATH_TO_BACKUP_SOURCE_FOLDER:/data
