@@ -48,7 +48,7 @@ func doBackup() error {
 
 	backup := backup.New(sourcePath, backupOutputPath, compressionLevel)
 
-	fileSystemTree, err := backup.BuildHybridOneLevelNestedJSON() // Use the recursive builder
+	newManifest, err := backup.BuildHybridOneLevelNestedJSON() // Use the recursive builder
 	if err != nil {
 		fmt.Printf("Error building file system JSON: %v\n", err)
 		return err
@@ -57,13 +57,13 @@ func doBackup() error {
 	oldManifest, err := openManifest()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			for _, fst := range fileSystemTree {
+			for _, fst := range newManifest {
 				fst.ModTime = time.Now().In(jkt).Format(time.RFC3339)
 				for _, c := range fst.Children {
 					c.ModTime = time.Now().In(jkt).Format(time.RFC3339)
 				}
 			}
-			if err := saveManifest(fileSystemTree); err != nil {
+			if err := saveManifest(newManifest); err != nil {
 				return fmt.Errorf("ERROR when saving manifest: %s", err.Error())
 			}
 			fmt.Println("First manifest created")
@@ -73,52 +73,42 @@ func doBackup() error {
 		return fmt.Errorf("ERROR when opening manifest: %s", err.Error())
 	}
 
+	for _, nm := range newManifest {
+		nm.IsNeedBackup = true
+		for _, om := range oldManifest {
+			if nm.Name == om.Name && nm.ModTime == om.ModTime && !isChildModified(nm, om) {
+				nm.IsNeedBackup = false
+				break
+			}
+		}
+	}
+
 	processedBackup := 0
 	// Iterate through the parent directories in the JSON response
 	// and create a zip file for each.
 	wg := new(sync.WaitGroup)
-	for _, ft := range fileSystemTree {
-		for _, of := range oldManifest {
-			if ft.Name == of.Name && of.ModTime != ft.ModTime {
+	for _, nm := range newManifest {
+		if nm.IsNeedBackup {
+			processedBackup++
+			wg.Add(1)
 
-				isChildDifferent := false
-				if len(ft.Children) == 0 {
-					isChildDifferent = true
-				} else {
-					for _, ftc := range ft.Children {
-						for _, ofc := range of.Children {
-							if ftc.Name == ofc.Name && ftc.ModTime != ofc.ModTime {
-								isChildDifferent = true
-								break
-							}
-						}
-					}
+			go func() {
+				defer wg.Done()
+				parent := nm // Get a pointer to modify the original struct in the slice
+				parentDirFullPath := filepath.Join(sourcePath, parent.Name)
+				zipFileName := parent.Name + ".zip"
+				destZipPath := filepath.Join(backupOutputPath, zipFileName)
+				sourcePath := filepath.Join(sourcePath, parent.Name)
+
+				err := backup.ZipDirectory(sourcePath, destZipPath)
+				if err != nil {
+					fmt.Printf("Failed to zip directory %q: %v\n", parentDirFullPath, err)
+					return
 				}
 
-				if isChildDifferent {
-
-					processedBackup++
-					wg.Add(1)
-
-					go func() {
-						defer wg.Done()
-						parent := ft // Get a pointer to modify the original struct in the slice
-						parentDirFullPath := filepath.Join(sourcePath, parent.Name)
-						zipFileName := parent.Name + ".zip"
-						destZipPath := filepath.Join(backupOutputPath, zipFileName)
-						sourcePath := filepath.Join(sourcePath, parent.Name)
-
-						err := backup.ZipDirectory(sourcePath, destZipPath)
-						if err != nil {
-							fmt.Printf("Failed to zip directory %q: %v\n", parentDirFullPath, err)
-							return
-						}
-
-						fmt.Printf("Successfully zipped %q to %q\n", parentDirFullPath, destZipPath)
-						parent.ZipPath = destZipPath // Add zip path to JSON response
-					}()
-				}
-			}
+				fmt.Printf("Successfully zipped %q to %q\n", parentDirFullPath, destZipPath)
+				parent.ZipPath = destZipPath // Add zip path to JSON response
+			}()
 		}
 	}
 	wg.Wait()
@@ -129,7 +119,7 @@ func doBackup() error {
 		fmt.Println("Total processed backups:", processedBackup)
 	}
 
-	if err := saveManifest(fileSystemTree); err != nil {
+	if err := saveManifest(newManifest); err != nil {
 		return fmt.Errorf("ERROR when saving manifest: %s", err.Error())
 	}
 
@@ -138,15 +128,44 @@ func doBackup() error {
 	return nil
 }
 
-func saveManifest(fileSystemTree []*backup.DirectoryEntry) error {
-	m, _ := json.MarshalIndent(fileSystemTree, "", "\t")
-	newManifest, err := os.Create(filepath.Join(backupOutputPath, "manifest.json"))
+func isChildModified(newManifest, oldManifest *backup.DirectoryEntry) bool {
+	if len(newManifest.Children) != len(oldManifest.Children) {
+		return true
+	} else {
+		//check if folder renamed
+		mapName := make(map[string]bool)
+		for _, nmc := range newManifest.Children {
+			mapName[nmc.Name] = true
+		}
+
+		for _, omc := range oldManifest.Children {
+			if !mapName[omc.Name] {
+				return true
+			}
+		}
+
+		for _, nmc := range newManifest.Children {
+			for _, omc := range oldManifest.Children {
+				if nmc.Name == omc.Name && nmc.ModTime != omc.ModTime {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+
+}
+
+func saveManifest(newManifest []*backup.DirectoryEntry) error {
+	m, _ := json.MarshalIndent(newManifest, "", "\t")
+	file, err := os.Create(filepath.Join(backupOutputPath, "manifest.json"))
 	if err != nil {
 		return err
 	}
 
-	newManifest.Write(m)
-	defer newManifest.Close()
+	file.Write(m)
+	defer file.Close()
 
 	return nil
 }

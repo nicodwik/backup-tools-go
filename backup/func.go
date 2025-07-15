@@ -118,11 +118,12 @@ func (b *backup) ZipDirectory(sourcePath, destZipPath string) error {
 
 // DirectoryEntry represents a single directory in the flat JSON array.
 type DirectoryEntry struct {
-	Name     string            `json:"name"` // Will be the full relative path
-	Type     string            `json:"type"` // "file" or "directory"
-	ModTime  string            `json:"mod_time"`
-	Children []*DirectoryEntry `json:"children,omitempty"` // Only for directories
-	ZipPath  string            `json:"zip_path,omitempty"` // New: Path to the generated zip file
+	Name         string            `json:"name"` // Will be the full relative path
+	Type         string            `json:"type"` // "file" or "directory"
+	ModTime      string            `json:"mod_time"`
+	Children     []*DirectoryEntry `json:"children,omitempty"` // Only for directories
+	ZipPath      string            `json:"zip_path,omitempty"` // New: Path to the generated zip file
+	IsNeedBackup bool              `json:"-"`
 }
 
 // collectAllDescendantDirectoriesFlat walks a given directory (targetPath)
