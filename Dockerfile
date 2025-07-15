@@ -35,6 +35,8 @@ WORKDIR /root/
 
 # Copy the compiled binary from the builder stage into the final image
 COPY --from=builder /app/backup-tools-go .
+COPY --from=builder /usr/local/go/lib/time/zoneinfo.zip /
+ENV ZONEINFO=/zoneinfo.zip
 
 # Define the command to run your application when the container starts.
 # This assumes your compiled Go binary is named 'myapp'.

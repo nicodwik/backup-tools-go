@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+var (
+	jkt, _ = time.LoadLocation("Asia/Jakarta")
+)
+
 type backup struct {
 	SourcePath       string
 	OutputPath       string
@@ -113,19 +117,19 @@ func (b *backup) ZipDirectory(sourcePath, destZipPath string) error {
 }
 
 // DirectoryEntry represents a single directory in the flat JSON array.
-type directoryEntry struct {
-	Name     string           `json:"name"` // Will be the full relative path
-	Type     string           `json:"type"` // "file" or "directory"
-	ModTime  time.Time        `json:"mod_time"`
-	Children []directoryEntry `json:"children,omitempty"` // Only for directories
-	ZipPath  string           `json:"zip_path,omitempty"` // New: Path to the generated zip file
+type DirectoryEntry struct {
+	Name     string            `json:"name"` // Will be the full relative path
+	Type     string            `json:"type"` // "file" or "directory"
+	ModTime  string            `json:"mod_time"`
+	Children []*DirectoryEntry `json:"children,omitempty"` // Only for directories
+	ZipPath  string            `json:"zip_path,omitempty"` // New: Path to the generated zip file
 }
 
 // collectAllDescendantDirectoriesFlat walks a given directory (targetPath)
 // and collects all its subdirectories (children, grandchildren, etc.) into a flat slice.
 // The 'name' field in the returned entries will be relative to 'targetPath'.
-func (b *backup) collectAllDescendantDirectoriesFlat(targetPath string) ([]directoryEntry, error) {
-	var descendants []directoryEntry
+func (b *backup) collectAllDescendantDirectoriesFlat(targetPath string) ([]*DirectoryEntry, error) {
+	var descendants []*DirectoryEntry
 
 	err := filepath.WalkDir(targetPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -154,10 +158,10 @@ func (b *backup) collectAllDescendantDirectoriesFlat(targetPath string) ([]direc
 				return fmt.Errorf("error getting relative path for %q from %q: %w", path, targetPath, err)
 			}
 
-			descendants = append(descendants, directoryEntry{
+			descendants = append(descendants, &DirectoryEntry{
 				Name:    relPathFromTarget, // This includes parent names like "child_2/grandchild_1"
 				Type:    "directory",
-				ModTime: info.ModTime(),
+				ModTime: info.ModTime().In(jkt).Format(time.RFC3339),
 			})
 		}
 		return nil
@@ -172,8 +176,8 @@ func (b *backup) collectAllDescendantDirectoriesFlat(targetPath string) ([]direc
 
 // buildHybridOneLevelNestedJSON creates the specific hybrid structure requested.
 // It lists parent directories and then a flat list of all their descendants.
-func (b *backup) BuildHybridOneLevelNestedJSON() ([]directoryEntry, error) {
-	var result []directoryEntry
+func (b *backup) BuildHybridOneLevelNestedJSON() ([]*DirectoryEntry, error) {
+	var result []*DirectoryEntry
 
 	// Read immediate entries within the rootPath
 	entries, err := os.ReadDir(b.SourcePath)
@@ -191,10 +195,10 @@ func (b *backup) BuildHybridOneLevelNestedJSON() ([]directoryEntry, error) {
 				continue
 			}
 
-			parentEntry := directoryEntry{
+			parentEntry := DirectoryEntry{
 				Name:    entry.Name(), // Use base name for the top-level parent
 				Type:    "directory",
-				ModTime: parentInfo.ModTime(),
+				ModTime: parentInfo.ModTime().In(jkt).Format(time.RFC3339),
 			}
 
 			// Collect all descendants (children, grandchildren, etc.) for this parent
@@ -207,7 +211,7 @@ func (b *backup) BuildHybridOneLevelNestedJSON() ([]directoryEntry, error) {
 				parentEntry.Children = descendants
 			}
 
-			result = append(result, parentEntry)
+			result = append(result, &parentEntry)
 		}
 	}
 
