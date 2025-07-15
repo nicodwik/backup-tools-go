@@ -27,7 +27,7 @@ func New(sourcePath, outputPath string, compressionLevel int) *backup {
 
 // zipDirectory zips the contents of sourceDir into a new zip file at destZipPath.
 // It now accepts a compressionLevel (e.g., flate.DefaultCompression, flate.BestSpeed, flate.BestCompression, or 1-9).
-func (b *backup) ZipDirectory(destZipPath string) error {
+func (b *backup) ZipDirectory(sourcePath, destZipPath string) error {
 	zipFile, err := os.Create(destZipPath)
 	if err != nil {
 		return fmt.Errorf("failed to create zip file %q: %w", destZipPath, err)
@@ -45,9 +45,9 @@ func (b *backup) ZipDirectory(destZipPath string) error {
 		return fmt.Errorf("failed to register compressor for zip writer: %w", err)
 	}
 
-	fmt.Printf("Zipping contents of %q to %q with level %d...\n", b.SourcePath, destZipPath, b.CompressionLevel)
+	fmt.Printf("Zipping contents of %q to %q with level %d...\n", sourcePath, destZipPath, b.CompressionLevel)
 
-	err = filepath.WalkDir(b.SourcePath, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(sourcePath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -55,16 +55,19 @@ func (b *backup) ZipDirectory(destZipPath string) error {
 		// Skip the base directory itself if we don't want it as the root entry in the zip
 		// If you want the folder name as the root inside the zip, adjust this logic.
 		// For consistency with typical zip tool behavior, we usually include the base dir.
-		relPath, err := filepath.Rel(b.SourcePath, path)
+		relPath, err := filepath.Rel(sourcePath, path)
 		if err != nil {
 			return fmt.Errorf("failed to get relative path for %q: %w", path, err)
 		}
 
+		if relPath == "." {
+			return nil
+		}
 		// Determine the name to use inside the zip file
 		zipEntryName := relPath
-		if relPath == "." { // This is the root directory being zipped
-			zipEntryName = filepath.Base(b.SourcePath) // Use the base name of the source directory
-		}
+		// if relPath == "." { // This is the root directory being zipped
+		// 	zipEntryName = filepath.Base(sourcePath) // Use the base name of the source directory
+		// }
 
 		info, _ := d.Info()
 
@@ -103,7 +106,7 @@ func (b *backup) ZipDirectory(destZipPath string) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("error walking directory for zipping %q: %w", b.SourcePath, err)
+		return fmt.Errorf("error walking directory for zipping %q: %w", sourcePath, err)
 	}
 
 	return nil

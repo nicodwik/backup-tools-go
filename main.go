@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/nicodwik/backup-tools-go/backup"
@@ -49,21 +50,29 @@ func doBackup() error {
 
 	// Iterate through the parent directories in the JSON response
 	// and create a zip file for each.
+	wg := new(sync.WaitGroup)
 	for i := range fileSystemTree {
-		parent := &fileSystemTree[i] // Get a pointer to modify the original struct in the slice
-		parentDirFullPath := filepath.Join(sourcePath, parent.Name)
-		zipFileName := parent.Name + ".zip"
-		destZipPath := filepath.Join(backupOutputPath, zipFileName)
+		wg.Add(1)
 
-		err := backup.ZipDirectory(destZipPath)
-		if err != nil {
-			fmt.Printf("Failed to zip directory %q: %v\n", parentDirFullPath, err)
-			return err
-		}
+		go func() {
+			defer wg.Done()
+			parent := &fileSystemTree[i] // Get a pointer to modify the original struct in the slice
+			parentDirFullPath := filepath.Join(sourcePath, parent.Name)
+			zipFileName := parent.Name + ".zip"
+			destZipPath := filepath.Join(backupOutputPath, zipFileName)
+			sourcePath := filepath.Join(sourcePath, parent.Name)
 
-		fmt.Printf("Successfully zipped %q to %q\n", parentDirFullPath, destZipPath)
-		parent.ZipPath = destZipPath // Add zip path to JSON response
+			err := backup.ZipDirectory(sourcePath, destZipPath)
+			if err != nil {
+				fmt.Printf("Failed to zip directory %q: %v\n", parentDirFullPath, err)
+				return
+			}
+
+			fmt.Printf("Successfully zipped %q to %q\n", parentDirFullPath, destZipPath)
+			parent.ZipPath = destZipPath // Add zip path to JSON response
+		}()
 	}
+	wg.Wait()
 
 	return nil
 }
